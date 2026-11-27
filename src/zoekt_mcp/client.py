@@ -139,6 +139,41 @@ class ZoektClient:
         result = data.get("List", data)
         return dict(result) if isinstance(result, dict) else {}
 
+    async def get_repo_metadata(self) -> dict[str, dict[str, Any]]:
+        """Fetch optional repository enrichment metadata from ``GET /api/repo-metadata``.
+
+        M365-gated Zoekt gateways (such as ``https://code.innodata.studio``) expose
+        owner, ``pushed_at``, and pull-request statistics synced from GitHub. Bare
+        ``zoekt-webserver`` instances do not implement this endpoint and return 404
+        or HTML; in any non-200 or non-JSON case this method returns ``{}``.
+        """
+        headers = {"Accept": "application/json"}
+        headers.update(self._auth_headers())
+        try:
+            response = await self._http.get(
+                f"{self.backend_url}/api/repo-metadata",
+                headers=headers,
+            )
+        except httpx.HTTPError:
+            return {}
+
+        if response.status_code != 200:
+            return {}
+
+        try:
+            parsed = response.json()
+        except ValueError:
+            return {}
+
+        if not isinstance(parsed, dict):
+            return {}
+
+        repos_raw = parsed.get("repos", parsed)
+        if not isinstance(repos_raw, dict):
+            return {}
+
+        return {str(k): dict(v) for k, v in repos_raw.items() if isinstance(v, dict)}
+
     async def get_file(self, repo: str, path: str, branch: str = "HEAD") -> str:
         """Fetch raw file contents via ``/print?format=raw``.
 

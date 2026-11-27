@@ -1,5 +1,5 @@
 // zoekt-mcp docs. Strict: any broken link, markdown link, or anchor fails the build.
-const repo = "https://github.com/InnodataAgenticResearch/zoekt-mcp";
+const repo = "https://github.com/dannyzen-innodata/zoekt-mcp";
 
 export default {
   title: "zoekt-mcp",

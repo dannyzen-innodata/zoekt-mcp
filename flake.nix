@@ -29,7 +29,7 @@
         pkgs:
         pkgs.python3Packages.buildPythonApplication {
           pname = "zoekt-mcp";
-          version = "0.4.0";
+          version = "0.4.1";
           pyproject = true;
           src = lib.fileset.toSource {
             root = ./.;
@@ -74,7 +74,7 @@
         pkgs:
         pkgs.stdenv.mkDerivation {
           pname = "zoekt-mcp-docs";
-          version = "0.4.0";
+          version = "0.4.1";
           src = lib.fileset.toSource {
             root = ./.;
             fileset = lib.fileset.unions [
@@ -85,7 +85,7 @@
           npmRoot = "docs";
           npmDeps = pkgs.fetchNpmDeps {
             src = ./docs;
-            hash = "sha256-qZP7Xrz2vbBdhq3GUxVd510FcQ/u1d85let+qCsVR6k=";
+            hash = "sha256-3gbrkEVmjuCoT1Kt4ZtGVBHQujT8xSqBGUplILrsfVs=";
           };
           nativeBuildInputs = [
             pkgs.nodejs_22

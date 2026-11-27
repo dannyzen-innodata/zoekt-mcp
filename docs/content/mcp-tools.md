@@ -7,7 +7,7 @@ sidebar_position: 3
 
 ## 1. `list_repos(filter="")`
 
-Lists indexed repositories matching `filter` (e.g. `"makor"` or `"repo:InnodataAgenticResearch/.*"`). Returns `count` and a list of repository metadata objects (`name`, `url`, `source`, `branches`, `index_time`, `has_symbols`).
+Lists indexed repositories matching `filter` (e.g. `"makor"` or `"repo:InnodataAgenticResearch/.*"`). Returns `count` and a list of repository metadata objects (`name`, `url`, `source`, `branches`, `index_time`, `has_symbols`). When connected to a gateway exposing `GET /api/repo-metadata` (such as `https://code.innodata.studio`), each matching repository also includes `owners` (top human contributors and commit counts), `pushed_at`, `pr_open`, and `pr_total`.
 
 ## 2. `search_code(query, max_results=50, context_lines=3)`
 

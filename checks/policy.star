@@ -4,6 +4,7 @@ _CURL_PIPE_SHELL = r"curl\b[^|\n]*\|\s*(sudo\s+)?(ba|z)?sh\b"
 _UNEXPLAINED_PRAGMA = r"#\s*(pragma:\s*no\s*cover|noqa(:[^\s-]+)?|type:\s*ignore(\[[^\]]+\])?)\s*$"
 _UNITTEST_MOCK = r"\b(unittest\.mock|from\s+unittest\s+import\s+mock)\b"
 _MAX_OLD_SPACE_SIZE = r"--max-old-space-size\b"
+_DEPRECATED_ZOEKT_NIP_IO = r"136\.82\.105\.184"
 
 _FORBIDDEN_FILES = {
     ".env": True,
@@ -105,6 +106,21 @@ def standards_doc_required(ctx):
                 message = "STANDARDS.md is missing required section '%s'." % header,
             )
 
+def no_deprecated_nip_io_gateway(ctx):
+    """Forbid retired public GKE Ingress IP (136.82.105.184.nip.io); use https://code.innodata.studio."""
+    for path in ctx.scm.all_files(include_symlinks = True):
+        if path.startswith("checks/"):
+            continue
+        raw = str(ctx.io.read_file(path))
+        for idx, line in enumerate(raw.splitlines()):
+            if ctx.re.match(_DEPRECATED_ZOEKT_NIP_IO, line):
+                ctx.emit.finding(
+                    level = "error",
+                    filepath = path,
+                    line = idx + 1,
+                    message = "Retired public Zoekt ingress IP (136.82.105.184) is forbidden; use https://code.innodata.studio.",
+                )
+
 def register_policy_checks():
     for impl in [
         no_secrets_or_env_files,
@@ -112,6 +128,7 @@ def register_policy_checks():
         no_unexplained_pragma_or_disable,
         no_unittest_mock_in_tests,
         no_heap_limit_bandaids,
+        no_deprecated_nip_io_gateway,
         standards_doc_required,
     ]:
         shac.register_check(impl)

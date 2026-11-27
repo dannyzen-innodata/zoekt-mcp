@@ -36,7 +36,7 @@ test:
 	nix develop -c pytest -p randomly tests/test_client_unit.py tests/test_server_shaping.py --cov=zoekt_mcp --cov-branch --cov-report=term-missing --cov-fail-under=100
 
 # Run live E2E integration tests against the M365-authenticated Zoekt GKE gateway
-test-e2e url="https://136.82.105.184.nip.io":
+test-e2e url="https://code.innodata.studio":
 	ZOEKT_URL="{{url}}" nix develop -c pytest tests/test_integration.py -v
 
 # Start Docusaurus live-reload dev server on 127.0.0.1:3000

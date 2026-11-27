@@ -48,7 +48,7 @@ async def client() -> AsyncIterator[ZoektClient]:
 
 
 def test_version_and_truncate() -> None:
-    assert zoekt_mcp.__version__ == "0.4.0"
+    assert zoekt_mcp.__version__ == "0.4.1"
     assert _truncate("short", limit=10) == "short"
     long_txt = "x" * 25
     assert _truncate(long_txt, limit=10) == "xxxxxxxxxx... [truncated 15 chars]"
@@ -65,7 +65,7 @@ def test_load_config_flags_and_subcommands(tmp_path: Path) -> None:
         [
             "login",
             "--zoekt-url",
-            "https://136.82.105.184.nip.io",
+            "https://code.innodata.studio",
             "--timeout",
             "12.5",
             "--token",
@@ -78,7 +78,7 @@ def test_load_config_flags_and_subcommands(tmp_path: Path) -> None:
         ]
     )
     assert cfg_login.subcommand == "login"
-    assert cfg_login.backend_url == "https://136.82.105.184.nip.io"
+    assert cfg_login.backend_url == "https://code.innodata.studio"
     assert cfg_login.timeout == 12.5
     assert cfg_login.auth_token == "tok-abc"
     assert cfg_login.auth_file == auth_p
@@ -155,7 +155,7 @@ def test_stored_session_and_foci_extraction(tmp_path: Path) -> None:
 
 @respx.mock
 async def test_exchange_refresh_token_and_whoami() -> None:
-    base = "https://136.82.105.184.nip.io"
+    base = "https://code.innodata.studio"
     respx.post(f"{base}/_auth/token").mock(
         return_value=httpx.Response(
             200,
@@ -197,7 +197,7 @@ async def test_exchange_refresh_token_and_whoami() -> None:
 
 @respx.mock
 async def test_run_device_code_login_flows() -> None:
-    base = "https://136.82.105.184.nip.io"
+    base = "https://code.innodata.studio"
     opened_urls: list[str] = []
     printed: list[str] = []
 
@@ -299,7 +299,7 @@ async def test_run_device_code_login_flows() -> None:
 
 @respx.mock
 def test_cli_main_subcommands(tmp_path: Path) -> None:
-    base = "https://136.82.105.184.nip.io"
+    base = "https://code.innodata.studio"
     auth_file = tmp_path / "auth.json"
     foci_file = tmp_path / "foci.json"
     foci_file.write_text(json.dumps({"RefreshToken": {"k": {"secret": "rt-good"}}}))
@@ -544,3 +544,50 @@ async def test_get_file_returns_raw_text_and_handles_errors(client: ZoektClient)
     respx.get(PRINT_URL).mock(side_effect=httpx.ConnectError("down"))
     with pytest.raises(ZoektBackendError, match="GET /print failed"):
         await client.get_file("flask-app", "app.py")
+
+
+@respx.mock
+async def test_get_repo_metadata_handles_all_response_shapes(client: ZoektClient) -> None:
+    meta_url = f"{DEFAULT_BACKEND_URL}/api/repo-metadata"
+
+    # 1. Valid gateway payload wrapped under "repos" (plus non-dict entry skipped)
+    respx.get(meta_url).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "generated_at": "2026-11-27T00:00:00Z",
+                "repos": {
+                    "InnodataAgenticResearch/makor": {
+                        "owners": [{"login": "dannyzen-innodata", "contributions": 42}],
+                        "pushed_at": "2026-11-27T00:00:00Z",
+                        "pr_open": 1,
+                        "pr_total": 10,
+                    },
+                    "invalid_entry": "not-a-dict",
+                },
+            },
+        )
+    )
+    meta = await client.get_repo_metadata()
+    assert list(meta.keys()) == ["InnodataAgenticResearch/makor"]
+    assert meta["InnodataAgenticResearch/makor"]["pr_total"] == 10
+
+    # 2. Bare zoekt-webserver returning 404
+    respx.get(meta_url).mock(return_value=httpx.Response(404, text="not found"))
+    assert await client.get_repo_metadata() == {}
+
+    # 3. Invalid JSON on 200
+    respx.get(meta_url).mock(return_value=httpx.Response(200, text="<html>not json</html>"))
+    assert await client.get_repo_metadata() == {}
+
+    # 4. Top-level JSON list instead of object
+    respx.get(meta_url).mock(return_value=httpx.Response(200, json=[1, 2, 3]))
+    assert await client.get_repo_metadata() == {}
+
+    # 5. "repos" key is not a dict
+    respx.get(meta_url).mock(return_value=httpx.Response(200, json={"repos": ["bad"]}))
+    assert await client.get_repo_metadata() == {}
+
+    # 6. Transport error
+    respx.get(meta_url).mock(side_effect=httpx.ConnectError("unreachable"))
+    assert await client.get_repo_metadata() == {}

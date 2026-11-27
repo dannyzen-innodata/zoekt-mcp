@@ -2,6 +2,7 @@
 
 load(
     "//checks/policy.star",
+    "no_deprecated_nip_io_gateway",
     "no_heap_limit_bandaids",
     "no_secrets_or_env_files",
     "no_tracked_beads",
@@ -57,3 +58,12 @@ def test_standards_doc_required():
         "STANDARDS.md": "# Engineering standards\n",
     })
     asserts.eq(len(res.findings), 7)
+
+def test_no_deprecated_nip_io_gateway():
+    old_ip = "136.82." + "105.184"
+    res = testing.run(no_deprecated_nip_io_gateway, files = {
+        "README.md": "https://" + old_ip + ".nip.io\n",
+        "docs/content/intro.md": "https://code.innodata.studio\n",
+        "checks/policy_test.star": old_ip + "\n",
+    })
+    asserts.eq([(f.filepath, f.line) for f in res.findings], [("README.md", 1)])

@@ -1,7 +1,7 @@
 """Microsoft 365 (Entra ID) FOCI & Web Gateway Authentication for ``zoekt-mcp``.
 
 Allows engineers to authenticate once against an M365-gated Zoekt web gateway
-(such as ``https://136.82.105.184.nip.io``) via:
+(such as ``https://code.innodata.studio``) via:
 
 1. ``zoekt-mcp login`` — automatically exchanges a local Microsoft 365 FOCI
    refresh token (if present in ``~/.hermes``) or initiates an interactive

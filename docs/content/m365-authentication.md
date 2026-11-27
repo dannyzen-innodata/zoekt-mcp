@@ -3,12 +3,12 @@ title: "M365 Gateway Authentication"
 sidebar_position: 2
 ---
 
-When Zoekt is exposed behind the Innodata Microsoft 365 FOCI Auth Gate (`https://136.82.105.184.nip.io`), engineers authenticate once before their AI agents connect over stdio.
+When Zoekt is exposed behind the Innodata Microsoft 365 FOCI Auth Gate (`https://code.innodata.studio`), engineers authenticate once before their AI agents connect over stdio.
 
 ## 1. Authenticate (`zoekt-mcp login`)
 
 ```bash
-zoekt-mcp login --zoekt-url https://136.82.105.184.nip.io
+zoekt-mcp login --zoekt-url https://code.innodata.studio
 ```
 
 How it works:
@@ -20,7 +20,7 @@ How it works:
 ## 2. Check Session Status (`zoekt-mcp status`)
 
 ```bash
-zoekt-mcp status --zoekt-url https://136.82.105.184.nip.io
+zoekt-mcp status --zoekt-url https://code.innodata.studio
 ```
 
 Verifies your local token against `GET /_auth/whoami` on the gateway and prints your authenticated `@innodata.com` email, tenant ID (`be92c534-7b60-4630-bc01-ec5122548d47`), and expiration timestamp.
@@ -35,15 +35,21 @@ mcp_servers:
     command: zoekt-mcp
     args:
       - --zoekt-url
-      - https://136.82.105.184.nip.io
+      - https://code.innodata.studio
 ```
 
 ### Claude Code / Cursor
 
 ```bash
 claude mcp add zoekt \
-  --env ZOEKT_URL=https://136.82.105.184.nip.io \
-  -- uvx --from git+https://github.com/InnodataAgenticResearch/zoekt-mcp zoekt-mcp
+  --env ZOEKT_URL=https://code.innodata.studio \
+  -- uvx --from git+https://github.com/dannyzen-innodata/zoekt-mcp zoekt-mcp
+```
+
+### Nix Profile (Makor Workstations)
+
+```bash
+nix profile install github:dannyzen-innodata/zoekt-mcp#zoekt-mcp
 ```
 
 ## 4. Log Out (`zoekt-mcp logout`)

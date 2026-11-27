@@ -200,6 +200,38 @@ def test_shape_list_result_empty() -> None:
     assert _shape_list_result({}) == {"count": 0, "repos": []}
 
 
+def test_shape_list_result_enriches_gateway_metadata() -> None:
+    raw = {
+        "Repos": [
+            {"Repository": {"Name": "github.com/InnodataAgenticResearch/makor"}},
+            {"Repository": {"Name": "flask-app"}},
+            {"Repository": {"Name": "unmatched-repo"}},
+        ]
+    }
+    metadata = {
+        "InnodataAgenticResearch/makor": {
+            "owners": [{"login": "dannyzen-innodata", "contributions": 50}],
+            "pushed_at": "2026-11-27T00:00:00Z",
+            "pr_open": 2,
+            "pr_total": 15,
+        },
+        "flask-app": {
+            "owners": [{"login": "alice", "contributions": 5}],
+            "pushed_at": "2026-11-20T00:00:00Z",
+            "pr_open": 0,
+            "pr_total": 1,
+        },
+    }
+    shaped = _shape_list_result(raw, metadata=metadata)
+    assert shaped["count"] == 3
+    assert shaped["repos"][0]["owners"] == [{"login": "dannyzen-innodata", "contributions": 50}]
+    assert shaped["repos"][0]["pushed_at"] == "2026-11-27T00:00:00Z"
+    assert shaped["repos"][0]["pr_open"] == 2
+    assert shaped["repos"][0]["pr_total"] == 15
+    assert shaped["repos"][1]["owners"] == [{"login": "alice", "contributions": 5}]
+    assert "owners" not in shaped["repos"][2]
+
+
 @respx.mock
 async def test_build_server_and_tool_execution(tmp_path: Path) -> None:
     respx.post(f"{DEFAULT_BACKEND_URL}/api/search").mock(
@@ -213,6 +245,9 @@ async def test_build_server_and_tool_execution(tmp_path: Path) -> None:
             200,
             json={"List": {"Repos": [{"Repository": {"Name": "makor"}}]}},
         )
+    )
+    respx.get(f"{DEFAULT_BACKEND_URL}/api/repo-metadata").mock(
+        return_value=httpx.Response(404, text="not found")
     )
     respx.get(f"{DEFAULT_BACKEND_URL}/print").mock(
         return_value=httpx.Response(

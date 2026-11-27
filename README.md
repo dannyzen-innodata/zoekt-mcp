@@ -1,36 +1,36 @@
 # zoekt-mcp
 
-[![CI](https://github.com/radiovisual/zoekt-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/radiovisual/zoekt-mcp/actions/workflows/ci.yml)
+[![CI](https://github.com/dannyzen-innodata/zoekt-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dannyzen-innodata/zoekt-mcp/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/zoekt-mcp.svg)](https://pypi.org/project/zoekt-mcp/)
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-zoekt--mcp-blue)](https://github.com/radiovisual/zoekt-mcp/pkgs/container/zoekt-mcp)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-listed-blue)](https://registry.modelcontextprotocol.io/v0.1/servers?search=zoekt-mcp)
-[![License](https://img.shields.io/github/license/radiovisual/zoekt-mcp.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 An [MCP](https://modelcontextprotocol.io) server that exposes
 [Sourcegraph Zoekt](https://github.com/sourcegraph/zoekt) code search to any
-MCP-capable AI agent — Claude Code, Claude Desktop, Cursor, MCP Inspector,
+MCP-capable AI agent — Hermes Agent, Claude Code, Claude Desktop, Cursor, MCP Inspector,
 etc. — so the agent can run fast, indexed, regex/symbol-aware code search
 over your repositories regardless of the language you're working in.
 
 - **MCP server:** Python, built on
   [FastMCP](https://github.com/modelcontextprotocol/python-sdk), runs over
-  stdio so clients can spawn it as a subprocess. Published to
+  stdio so clients can spawn it as a subprocess. Upstream releases are published to
   [PyPI](https://pypi.org/project/zoekt-mcp/),
   [ghcr.io](https://github.com/radiovisual/zoekt-mcp/pkgs/container/zoekt-mcp),
   and listed in the
-  [official MCP Registry](https://registry.modelcontextprotocol.io/v0.1/servers?search=zoekt-mcp),
-  so **no clone is required to use it**.
+  [official MCP Registry](https://registry.modelcontextprotocol.io/v0.1/servers?search=zoekt-mcp);
+  this hardened fork (`v0.4.1`) can be run directly via `uvx --from git+https://github.com/dannyzen-innodata/zoekt-mcp zoekt-mcp` or `nix profile install github:dannyzen-innodata/zoekt-mcp#zoekt-mcp`.
 - **Backend:** a `zoekt-webserver` you run yourself via the Docker
   Compose file attached to every
   [GitHub release](https://github.com/radiovisual/zoekt-mcp/releases/latest) —
   or point the MCP server at any existing zoekt-webserver or
-  Microsoft 365-authenticated Zoekt web gateway (`https://136.82.105.184.nip.io`).
-- **Tools exposed:** `search_code`, `list_repos`, `get_file`.
-- **Microsoft 365 Web Gateway Auth (`v0.4.0`):** Built-in `zoekt-mcp login`,
+  Microsoft 365-authenticated Zoekt web gateway (`https://code.innodata.studio`).
+- **Tools exposed:** `search_code`, `list_repos` (automatically enriched with GitHub `owners`, `pushed_at`, `pr_open`, and `pr_total` when `/api/repo-metadata` is available), and `get_file`.
+- **Microsoft 365 Web Gateway Auth (`v0.4.1`):** Built-in `zoekt-mcp login`,
   `zoekt-mcp status`, and `zoekt-mcp logout` subcommands for authenticating
   against an M365 FOCI-gated Zoekt web gateway before running MCP tools.
 - **Documentation & Quality Gates:** Full Docusaurus 3 site in [`docs/`](docs/content/intro.md)
-  (`just docs-serve` on `http://127.0.0.1:3000`) and hermetic Nix flake check
+  (`just docs-serve` on `http://127.0.0.1:3000`), Trivy security gate (`vuln,secret,misconfig`), and hermetic Nix flake check
   (`just check`: `shac`, `ruff`, `mypy --strict`, and 2x randomized 100%-coverage `pytest`).
 
 ## Microsoft 365 Web Gateway Quickstart (Innodata Engineers)
@@ -38,8 +38,8 @@ over your repositories regardless of the language you're working in.
 1. **Authenticate once against the Zoekt M365 Web Gateway:**
 
    ```bash
-   zoekt-mcp login --zoekt-url https://136.82.105.184.nip.io
-   zoekt-mcp status --zoekt-url https://136.82.105.184.nip.io
+   zoekt-mcp login --zoekt-url https://code.innodata.studio
+   zoekt-mcp status --zoekt-url https://code.innodata.studio
    ```
 
    This exchanges your local M365 FOCI refresh token (or runs an interactive
@@ -54,14 +54,22 @@ over your repositories regardless of the language you're working in.
        command: zoekt-mcp
        args:
          - --zoekt-url
-         - https://136.82.105.184.nip.io
+         - https://code.innodata.studio
+   ```
+
+   Or with `uvx` directly from GitHub (no clone required):
+
+   ```bash
+   claude mcp add zoekt \
+     --env ZOEKT_URL=https://code.innodata.studio \
+     -- uvx --from git+https://github.com/dannyzen-innodata/zoekt-mcp zoekt-mcp
    ```
 
 3. **Run Quality Gates & E2E Tests:**
 
    ```bash
    just check
-   just test-e2e https://136.82.105.184.nip.io
+   just test-e2e https://code.innodata.studio
    ```
 
 ## Architecture
@@ -445,7 +453,7 @@ specific reason not to.
 | Tool | Parameters | Returns |
 |------|------------|---------|
 | `search_code` | `query: str`, `max_results: int = 50`, `context_lines: int = 3` | `{query, file_count, match_count, duration_ns, files: [{repo, file, language, branches, matches: [{line, text, ranges, symbols}]}]}` |
-| `list_repos` | `filter: str = ""` (optional `repo:` atom) | `{count, repos: [{name, url, branches, index_time}]}` |
+| `list_repos` | `filter: str = ""` (optional `repo:` atom) | `{count, repos: [{name, url, source, branches, index_time, has_symbols, owners?, pushed_at?, pr_open?, pr_total?}]}` |
 | `get_file` | `repo: str`, `path: str`, `branch: str = "HEAD"` | `{repo, path, branch, content}` |
 
 ### Query language
@@ -622,27 +630,26 @@ server, run the full test suite, or cut a release.
 
 ### Setup
 
-Clone the repo and let `uv` manage the venv for you:
+Clone the repo and run the hermetic Nix quality gate (`just check`), or let `uv` manage a local `.venv`:
 
 ```bash
-git clone https://github.com/radiovisual/zoekt-mcp
+git clone https://github.com/dannyzen-innodata/zoekt-mcp
 cd zoekt-mcp
-uv sync
+just check                       # shac, mypy --strict, 2x random 100%-cov pytest, Docusaurus build
+just docs-serve                  # build & serve Docusaurus docs on http://127.0.0.1:3000
+uv sync                          # optional local uv virtualenv
 ```
-
-`uv sync` creates `.venv/`, resolves everything against `uv.lock`, and
-installs all runtime + dev dependencies. The dev group (`pytest`,
-`pytest-asyncio`, `respx`, `ruff`, `pre-commit`, `pymarkdownlnt`) is
-installed by default; pass `uv sync --no-dev` for a runtime-only
-install.
 
 Common dev commands:
 
 ```bash
-uv run pytest                    # run the full test suite
+just fmt                         # format Python & Starlark via ruff + shac fmt
+just lint                        # ruff check + shac check --all
+just typecheck                   # mypy --strict across src and tests
+just shac-test                   # Starlark policy unit tests (checks/policy_test.star)
+just test                        # 2x randomized pytest enforcing 100% line & branch coverage
+just test-e2e                    # live E2E tests against https://code.innodata.studio
 uv run zoekt-mcp --help          # run the CLI from source
-uv add <package>                 # add a new runtime dep
-uv add --dev <package>           # add a new dev dep
 uv lock --upgrade                # refresh uv.lock
 ```
 
@@ -731,10 +738,16 @@ automatically when `ZOEKT_URL` is unreachable, so a plain
 
 ## Configuration
 
+Subcommands: `zoekt-mcp [serve]` (default stdio MCP server), `zoekt-mcp login`, `zoekt-mcp status`, and `zoekt-mcp logout`.
+
 | Setting | Env var | Flag | Default |
 |---------|---------|------|---------|
-| Zoekt backend URL | `ZOEKT_URL` | `--zoekt-url` | `http://localhost:6070` |
+| Zoekt backend / gateway URL | `ZOEKT_URL` | `--zoekt-url` | `http://localhost:6070` |
 | HTTP timeout (s) | `ZOEKT_TIMEOUT` | `--timeout` | `30` |
+| Explicit gateway Bearer token | `ZOEKT_AUTH_TOKEN` | `--token` | *(resolved from auth file)* |
+| Persisted M365 session JSON | `ZOEKT_AUTH_FILE` | `--auth-file` | `~/.config/zoekt-mcp/auth.json` |
+| Local M365 FOCI cache JSON | `ZOEKT_FOCI_CACHE` | `--foci-cache` | `~/.hermes/.../foci_token_cache.json` |
+| Suppress browser launch on login | — | `--no-browser` | `false` |
 
 The env var and the flag are equivalent — pick whichever fits your
 MCP client's config shape better. Most clients set environment
@@ -746,10 +759,15 @@ the `uvx` and Docker snippets above use `ZOEKT_URL` rather than
 
 ```text
 zoekt-mcp/
-├── src/zoekt_mcp/         # the Python MCP server
+├── flake.nix / justfile   # hermetic Nix devShell, package, docs server & `just check`
+├── shac.star / checks/    # Starlark formatting, linting, typecheck & policy rules + tests
+├── STANDARDS.md           # agentic engineering & security standards
+├── docs/                  # strict Docusaurus 3 documentation site (`just docs-serve`)
+├── src/zoekt_mcp/         # FastMCP stdio server, async Zoekt client & M365 FOCI auth
 ├── tests/
-│   ├── test_client_unit.py     # offline unit tests
-│   ├── test_integration.py     # live tests (skip when backend down)
+│   ├── test_client_unit.py     # deterministic 100%-coverage client/auth/CLI unit tests
+│   ├── test_server_shaping.py  # deterministic MCP tool & response-shaping unit tests
+│   ├── test_integration.py     # live E2E tests (M365 gateway or local Docker corpus)
 │   └── fixtures/               # test-only helpers (up.sh / down.sh)
 ├── deploy/
 │   ├── docker-compose.yml      # generic zoekt backend (env-driven)

@@ -106,12 +106,15 @@ def _register_tools(mcp: FastMCP, client: ZoektClient) -> None:
         every indexed repository.
 
         Returns ``{"repos": [{name, url, branches, ...}, ...], "count": N}``.
+        When connected to a gateway exposing ``/api/repo-metadata``, entries
+        also include ``owners``, ``pushed_at``, ``pr_open``, and ``pr_total``.
         """
         query = filter.strip() or "repo:."
         if not query.startswith("repo:") and "repo:" not in query:
             query = f"repo:{query}"
         raw = await client.list_repos(query)
-        return _shape_list_result(raw)
+        metadata = await client.get_repo_metadata()
+        return _shape_list_result(raw, metadata=metadata)
 
     @mcp.tool()
     async def get_file(repo: str, path: str, branch: str = "HEAD") -> dict[str, Any]:
@@ -241,21 +244,33 @@ def _decode_line(value: Any) -> str:
         return value
 
 
-def _shape_list_result(raw: dict[str, Any]) -> dict[str, Any]:
+def _shape_list_result(
+    raw: dict[str, Any],
+    *,
+    metadata: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     repos_raw = raw.get("Repos") or []
+    meta_map = metadata or {}
     repos: list[dict[str, Any]] = []
     for entry in repos_raw:
         repo = entry.get("Repository") or {}
         index_meta = entry.get("IndexMetadata") or {}
         branches = [b.get("Name") for b in (repo.get("Branches") or []) if b.get("Name")]
-        repos.append(
-            {
-                "name": repo.get("Name", ""),
-                "url": repo.get("URL", ""),
-                "source": repo.get("Source", ""),
-                "branches": branches,
-                "index_time": index_meta.get("IndexTime"),
-                "has_symbols": repo.get("HasSymbols"),
-            }
-        )
+        name = str(repo.get("Name", ""))
+        shaped_repo: dict[str, Any] = {
+            "name": name,
+            "url": repo.get("URL", ""),
+            "source": repo.get("Source", ""),
+            "branches": branches,
+            "index_time": index_meta.get("IndexTime"),
+            "has_symbols": repo.get("HasSymbols"),
+        }
+        short_name = name.removeprefix("github.com/")
+        repo_meta = meta_map.get(name) or meta_map.get(short_name)
+        if repo_meta is not None:
+            shaped_repo["owners"] = repo_meta.get("owners", [])
+            shaped_repo["pushed_at"] = repo_meta.get("pushed_at")
+            shaped_repo["pr_open"] = repo_meta.get("pr_open")
+            shaped_repo["pr_total"] = repo_meta.get("pr_total")
+        repos.append(shaped_repo)
     return {"count": len(repos), "repos": repos}
